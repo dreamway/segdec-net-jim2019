@@ -73,7 +73,12 @@ import tensorflow as tf
 from scipy.ndimage.morphology import binary_dilation
 from scipy.ndimage import generate_binary_structure, iterate_structure
 
-from cStringIO import StringIO
+try:
+  from cStringIO import StringIO
+except:
+  from io import StringIO
+  from io import BytesIO
+
 from PIL import Image
 
 def _int64_feature(value):
@@ -141,7 +146,9 @@ def _process_image(filename, out_format, resize = None, dilate = None, require_b
     raw_image_data = f.read()
 
   # Convert any format to PNG for consistency.
-  pil_img = Image.open(StringIO(raw_image_data))
+  #pil_img = Image.open(StringIO(raw_image_data))
+  pil_img = Image.open(BytesIO(raw_image_data))
+
 
   # dilate image if requested so - create structering element of appropriate size
   if dilate is not None:
@@ -157,8 +164,13 @@ def _process_image(filename, out_format, resize = None, dilate = None, require_b
     im = (np.array(pil_img) > 0)
     pil_img = Image.fromarray(np.uint8(im) * 255)
 
-  image_data = StringIO()
-  pil_img.save(image_data, out_format)
+  try:
+    #image_data = StringIO()
+    image_data = BytesIO()
+    pil_img.save(image_data, out_format)
+  except Exception as e:
+    print("exception inside _process_image:", e)
+
 
   height = pil_img.size[1]
   width = pil_img.size[0]
@@ -170,6 +182,7 @@ def _process_image(filename, out_format, resize = None, dilate = None, require_b
     num_chanels = 1
 
   return image_data.getvalue(), height, width, num_chanels
+
 
 
 def _process_image_files_batch(image_format, thread_index, ranges, name, filenames, masks, num_shards, output_directory, resize = None, naming_fn = None, dilate = None, require_binary_output = False, export_images = False):
@@ -233,8 +246,8 @@ def _process_image_files_batch(image_format, thread_index, ranges, name, filenam
       try:
         image_buffer, img_height, img_width, img_channels = _process_image(filename, image_format, resize)
       except Exception as e:
-        print(e)
         print('SKIPPED: Unexpected eror while decoding %s.' % filename)
+        print('exception:', e)
         continue
 
       try:
@@ -245,7 +258,8 @@ def _process_image_files_batch(image_format, thread_index, ranges, name, filenam
 
         # Generate dummy mask
         pil_img = Image.fromarray(np.zeros([img_height, img_width], dtype=np.uint8))
-        image_data = StringIO()
+        #image_data = StringIO()
+        image_data = BytesIO()
         pil_img.save(image_data, image_format)
 
         mask_buffer = image_data.getvalue()
@@ -253,8 +267,13 @@ def _process_image_files_batch(image_format, thread_index, ranges, name, filenam
         mask_width = pil_img.size[0]
         mask_channels = 1
 
-      assert img_height == mask_height
-      assert img_width == mask_width
+      try:
+        print('image_width', img_width, ', mask_width:', mask_width, 'filename,', filename)
+        assert img_height == mask_height
+        assert img_width == mask_width
+      except Exception as e:
+        print(e)
+        continue
 
       example = _convert_to_example(filename, image_buffer, img_channels, mask_filename, mask_buffer, mask_channels, image_format, img_height, img_width, naming_fn=naming_fn)
       writer.write(example.SerializeToString())
@@ -272,9 +291,10 @@ def _process_image_files_batch(image_format, thread_index, ranges, name, filenam
           export_mask_name = str.format("{0}_{1}_label.{2}", part_name, part_id, image_format.lower())
 
           # export both img and its mask
-          Image.open(StringIO(image_buffer)).save(os.path.join(export_folder_imgs, export_img_name))
-          Image.open(StringIO(mask_buffer)).save(os.path.join(export_folder_masks, export_mask_name))
-
+          #Image.open(StringIO(image_buffer)).save(os.path.join(export_folder_imgs, export_img_name))
+          #Image.open(StringIO(mask_buffer)).save(os.path.join(export_folder_masks, export_mask_name))
+          Image.open(BytesIO(image_buffer)).save(os.path.join(export_folder_imgs, export_img_name))
+          Image.open(BytesIO(mask_buffer)).save(os.path.join(export_folder_masks, export_mask_name))
 
       if not counter % 1000:
         print('%s [thread %d]: Processed %d of %d images in thread batch.' %
@@ -374,7 +394,7 @@ def _find_image_files(data_dir_list, data_ext, mask_pattern, ignore_non_positive
 
     # remove files that are actual labels !!
     matching_files = [f for f in matching_files if not f.endswith(mask_pattern[1])]
-
+    print('matching_files:', matching_files) #debug
     filenames.extend(matching_files)
 
     # Find corresponding mask files
@@ -414,3 +434,73 @@ def _process_dataset(name, directory_list, data_extension, mask_patterns, output
   filenames, masks = _find_image_files(directory_list, data_extension, mask_patterns, ignore_non_positive_masks)
   _process_image_files(name, filenames, masks, output_directory, num_shards, num_threads, resize=resize, naming_fn = naming_fn, dilate = dilate, require_binary_output=require_binary_output, export_images = export_images)
 
+import pickle
+import os.path as osp
+
+
+def generate_type4_dataset():
+      img_root = '/home/jingwenlai/data/type4/type4_and_masks/'
+      output_root = '../db/SilverPlot'	
+
+      train_split = [['silverplot01', 'silverplot02'], ['silverplot01', 'silverplot03'], ['silverplot02', 'silverplot03']]
+      test_split = [['silverplot03'],['silverplot02'], ['silverplot01']]
+
+      for i in range(len(train_split)):
+        folder_name = 'fold_%d'%i
+        folder_root = osp.join(output_root, folder_name)
+        
+        directory_list=[]
+        for train_dir in train_split[i]:
+          directory_list.append(osp.join(img_root, train_dir))
+        
+        data_extension = ".png"
+        mask_pattern = ('.png', '_mask.jpg')
+        num_shards = 1
+        num_threads = 1
+        output_directory = folder_root
+        name = 'train'
+        _process_dataset(name, directory_list, data_extension, mask_pattern, output_directory, num_shards, num_threads)
+
+        directory_list = []
+        for test_dir in test_split[i]:
+            directory_list.append(osp.join(img_root, test_dir))
+
+        name="test"
+        _process_dataset(name, directory_list, data_extension, mask_pattern, output_directory, num_shards, num_threads)
+
+
+
+def generate_kolektorSDD_dataset():
+  with open('../split.pyb','rb') as f:
+    [train_split, test_split, all] = pickle.load(f)
+
+  img_root = '../db/original_dataset/'
+  output_root = '../db/output'	
+
+  for i in range(len(train_split)):
+    directory_list=[]
+    folder_name = 'fold_%d'%i
+    folder_root = osp.join(output_root, folder_name)
+
+    for train_dir in train_split[i]:
+      directory_list.append(osp.join(img_root, train_dir))
+    
+    data_extension = ".jpg"
+    mask_pattern = ('.jpg', '_label.bmp')
+    num_shards = 1
+    num_threads = 1
+    output_directory = folder_root
+    name = 'train'
+    _process_dataset(name, directory_list, data_extension, mask_pattern, output_directory, num_shards, num_threads)
+
+    directory_list = []
+    for test_dir in test_split[i]:
+        directory_list.append(osp.join(img_root, test_dir))
+
+    name="test"
+    _process_dataset(name, directory_list, data_extension, mask_pattern, output_directory, num_shards, num_threads)
+
+
+
+if __name__ == "__main__":
+      generate_type4_dataset()

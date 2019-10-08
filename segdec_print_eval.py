@@ -59,7 +59,7 @@ def evaluate_decision(data_dir, folds_list = [0,1,2]):
 
         TP, FP, FN, TN, TP_, FP_, FN_, TN_, F_measure, AUC, AP = get_performance_eval(PD_decision_net[:,0], PD_decision_net[:,1])
 
-        print "AP: %.03f, FP/FN: %d/%d, FP@FN=0: %d" % (AP, FP.sum(), FN.sum(), FP_.sum())
+        print("AP: %.03f, FP/FN: %d/%d, FP@FN=0: %d" % (AP, FP.sum(), FN.sum(), FP_.sum()))
 
         results = {'TP': TP.sum(),
                    'FP': FP.sum(),

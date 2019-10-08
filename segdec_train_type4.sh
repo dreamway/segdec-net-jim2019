@@ -1,0 +1,1 @@
+python3 segdec_train.py  --fold=0,1,2 --gpu=0 --max_steps=6600 --train_subset=train --seg_net_type=ENTROPY --size_height=1256 --size_width=1296 --with_seg_net=True --with_decision_net=False --storage_dir=silverplot --dataset_dir=db --datasets=SilverPlot --name_prefix=full-size_cross-entropy

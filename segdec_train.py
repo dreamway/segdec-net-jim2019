@@ -601,9 +601,6 @@ class SegDecTrain(object):
                     plt.ylabel('True positive rate')
                     plt.savefig(str.format("{0}/ROC.pdf", eval_dir), bbox_inches='tight')
 
-
-
-
             except Exception as e:  # pylint: disable=broad-except
                 coord.request_stop(e)
 
