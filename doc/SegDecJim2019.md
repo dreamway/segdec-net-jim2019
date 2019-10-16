@@ -118,6 +118,8 @@
 
 the original source code need to modify & generate the dataset.
 
+see *input_data/input_data_build_image_data_with_mask.py* for reference.
+
 
 
 ### train the generated data & compare results with results of original data
@@ -609,5 +611,7 @@ summarizes the results as table
 
 ## Inspect the results
 
-by reviewing the results(*pdfs), I found there some error in original annotated data.
+by reviewing the results(*pdfs), I found there some error in original annotated data. 
+
+** TODO**, Need update the original annotation, and re-train again.
 
